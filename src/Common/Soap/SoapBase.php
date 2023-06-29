@@ -23,6 +23,7 @@ use NFePHP\Common\Exception\RuntimeException;
 use NFePHP\Common\Strings;
 use League\Flysystem\Filesystem;
 use Psr\Log\LoggerInterface;
+use League\Flysystem\FilesystemException;
 
 abstract class SoapBase implements SoapInterface
 {
@@ -387,7 +388,6 @@ abstract class SoapBase implements SoapInterface
         $this->prifile = $this->certsdir. Strings::randomString(10).'.pem';
         $this->pubfile = $this->certsdir . Strings::randomString(10).'.pem';
         $this->certfile = $this->certsdir . Strings::randomString(10).'.pem';
-        $ret = true;
         $private = $this->certificate->privateKey;
         if ($this->encriptPrivateKey) {
             //cria uma senha temporária ALEATÓRIA para salvar a chave primaria
@@ -401,19 +401,20 @@ abstract class SoapBase implements SoapInterface
                 $this->temppass
             );
         }
-        $ret &= $this->filesystem->write(
-            $this->prifile,
-            $private
-        );
-        $ret &= $this->filesystem->write(
-            $this->pubfile,
-            $this->certificate->publicKey
-        );
-        $ret &= $this->filesystem->write(
-            $this->certfile,
-            $private."{$this->certificate}"
-        );
-        if (!$ret) {
+        try {
+            $this->filesystem->write(
+                $this->prifile,
+                $private
+            );
+            $this->filesystem->write(
+                $this->pubfile,
+                $this->certificate->publicKey
+            );
+            $this->filesystem->write(
+                $this->certfile,
+                $private . "{$this->certificate}"
+            );
+        } catch (FilesystemException $exception) {
             throw new RuntimeException(
                 'Unable to save temporary key files in folder.'
             );
@@ -449,7 +450,7 @@ abstract class SoapBase implements SoapInterface
                     $this->filesystem->delete($item['path']);
                     continue;
                 }
-                $timestamp = $this->filesystem->getTimestamp($item['path']);
+                $timestamp = $this->filesystem->lastModified($item['path']);
                 if ($timestamp < $tsLimit) {
                     //remove arquivos criados a mais de 45 min
                     $this->filesystem->delete($item['path']);
